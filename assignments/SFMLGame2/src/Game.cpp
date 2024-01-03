@@ -32,12 +32,85 @@ void Game::run()
 	}
 }
 
-void Game::init(const std::string& config)
+void Game::init(const std::string &config)
 {
+	std::ifstream fin(config);
+	if (!fin)
+	{
+		std::cerr << "Failed to open config file: " << config << "." << std::endl;
+		exit(-1);
+	}
 
-	m_window.create(sf::VideoMode(1280, 720), "SFMLGame2");;
-	m_window.setFramerateLimit(60);
+	std::string type;
+	fin >> type;
+	if (type != "Window")
+	{
+		std::cerr << "Expected first declaration to be Window, got: " << type << " instead." << std::endl;
+		exit(-1);
+	}
 
+	int w, h, fps;
+	bool fs;
+	fin >> w >> h >> fps >> fs;
+	m_window.create(sf::VideoMode(w, h), "SFMLGame2", fs ? sf::Style::Fullscreen : sf::Style::Default);
+	m_window.setFramerateLimit(fps);
+
+	fin >> type;
+	if (type != "Font")
+	{
+		std::cerr << "Expected second declaration to be Font, got: " << type << " instead." << std::endl;
+		exit(-1);
+	}
+
+	std::string fontFile;
+	int fontSize, fontR, fontG, fontB;
+	fin >> fontFile >> fontSize >> fontR >> fontG >> fontB;
+	if (!m_font.loadFromFile(fontFile)) {
+		std::cerr << "Could not load font: " << fontFile << "." << std::endl;
+		exit(-1);
+	}
+
+	while (fin >> type)
+	{
+		if (type == "Player")
+		{
+			fin >> m_playerConfig.SR >> m_playerConfig.CR
+				>> m_playerConfig.S
+				>> m_playerConfig.FR >> m_playerConfig.FG >> m_playerConfig.FB
+				>> m_playerConfig.OR >> m_playerConfig.OG >> m_playerConfig.OB
+				>> m_playerConfig.OT
+				>> m_playerConfig.V;
+				
+			continue;
+		}
+
+		if (type == "Enemy")
+		{
+			fin >> m_enemyConfig.SR >> m_enemyConfig.CR
+				>> m_enemyConfig.SMIN >> m_enemyConfig.SMAX
+				>> m_enemyConfig.OR >> m_enemyConfig.OG >> m_enemyConfig.OB
+				>> m_enemyConfig.OT
+				>> m_enemyConfig.VMIN >> m_enemyConfig.VMAX
+				>> m_enemyConfig.L >> m_enemyConfig.SI;
+			continue;
+		}
+
+		if (type == "Bullet")
+		{
+			fin >> m_bulletConfig.SR >> m_bulletConfig.CR
+				>> m_bulletConfig.S
+				>> m_bulletConfig.FR >> m_bulletConfig.FG >> m_bulletConfig.FB
+				>> m_bulletConfig.OR >> m_bulletConfig.OG >> m_bulletConfig.OB
+				>> m_bulletConfig.OT
+				>> m_bulletConfig.V >> m_bulletConfig.L;
+			continue;
+		}
+
+		std::cerr << "Invalid config entry: " << type << "." << std::endl;
+		fin.ignore('\n');
+	}
+
+	std::cout << "Finished reading config..." << std::endl;
 	spawnPlayer();
 }
 
@@ -124,6 +197,7 @@ void Game::sRender()
 
 	m_player->cTransform->angle += 1.0f;
 	m_player->cShape->circle.setRotation(m_player->cTransform->angle);
+	m_window.draw(m_player->cShape->circle);
 
 	m_window.display();
 }
@@ -146,10 +220,15 @@ void Game::spawnPlayer()
 	auto entity = m_entities.addEntity("player");
 
 	// Give this entity a Transform so it spawns at (200, 200) with the velocity (1,1) and angle 0
-	entity->cTransform = std::make_shared<CTransform>(Vec2(200.0f, 200.0f), Vec2(1.0f, 1.0f), 0.0f);
+	sf::Vector2u size = m_window.getSize();
+	entity->cTransform = std::make_shared<CTransform>(Vec2(size.x / 2.0f, size.y / 2.0f), Vec2(m_playerConfig.S, m_playerConfig.S), 0.0f);
 
 	// The entity's shape will have radius 32, 8 sides, dark grey fill , and red outline of tthickness 4
-	entity->cShape = std::make_shared<CShape>(32.0f, 8, sf::Color(10, 10, 10), sf::Color(255, 0, 0), 4.0f);
+	entity->cShape = std::make_shared<CShape>(
+		m_playerConfig.SR, 
+		m_playerConfig.V, 
+		sf::Color(m_playerConfig.FR, m_playerConfig.FG, m_playerConfig.FB), 
+		sf::Color(m_playerConfig.OR, m_playerConfig.OG, m_playerConfig.OB), m_playerConfig.OT);
 
 	// Add an input component to the player so that we can use inputs
 	entity->cInput = std::make_shared<CInput>();
